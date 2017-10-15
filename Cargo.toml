@@ -18,9 +18,8 @@ log = "~0.3"
 nuklear-rust = "~0.3"
 
 [dependencies.winapi]
-path = "../winapi-rs"
-# git = "https://github.com/retep998/winapi-rs"
-branch = "dev"
+git = "https://github.com/m0ppers/winapi-rs"
+branch = "wide"
 #version = "^0.3.0"
 features = ["winbase", "wingdi", "winnls", "winuser", "xxx"]
 default-features = false
