@@ -15,11 +15,15 @@ path = "src/lib.rs"
 
 [dependencies]
 log = "~0.3"
-user32-sys = "~0.2"
-gdi32-sys = "~0.2"
-kernel32-sys = "~0.2"
-winapi = "~0.2"
 nuklear-rust = "~0.3"
+
+[dependencies.winapi]
+path = "../winapi-rs"
+# git = "https://github.com/retep998/winapi-rs"
+branch = "dev"
+#version = "^0.3.0"
+features = ["winbase", "wingdi", "winnls", "winuser", "xxx"]
+default-features = false
 
 [dependencies.image]
 version = "~0.12"

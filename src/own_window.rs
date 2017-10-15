@@ -1,8 +1,6 @@
 use super::nuklear_rust::NkContext;
 
 use super::winapi;
-use super::kernel32;
-use super::user32;
 
 use std::{ptr, mem, str};
 use std::os::windows::ffi::OsStrExt;
@@ -10,10 +8,10 @@ use std::ffi::OsStr;
 
 use super::Drawer;
 
-pub fn create_env(window_name: &str, width: u16, height: u16) -> (winapi::HWND, winapi::HDC) {
+pub fn create_env(window_name: &str, width: u16, height: u16) -> (winapi::shared::windef::HWND, winapi::shared::windef::HDC) {
     unsafe {
         let window = create_window(window_name, width as i32, height as i32);
-        let hdc = user32::GetDC(window);
+        let hdc = winapi::um::winuser::GetDC(window);
         (window, hdc)
     }
 }
@@ -39,62 +37,62 @@ fn register_window_class() -> Vec<u16> {
             .chain(Some(0).into_iter())
             .collect::<Vec<_>>();
 
-        let class = winapi::WNDCLASSEXW {
-            cbSize: mem::size_of::<winapi::WNDCLASSEXW>() as winapi::UINT,
-            style: winapi::CS_DBLCLKS,
+        let class = winapi::um::winuser::WNDCLASSEXW {
+            cbSize: mem::size_of::<winapi::um::winuser::WNDCLASSEXW>() as winapi::shared::minwindef::UINT,
+            style: winapi::um::winuser::CS_DBLCLKS,
             lpfnWndProc: Some(callback),
             cbClsExtra: 0,
             cbWndExtra: 0,
-            hInstance: kernel32::GetModuleHandleW(ptr::null()),
-            hIcon: user32::LoadIconW(ptr::null_mut(), winapi::IDI_APPLICATION),
-            hCursor: user32::LoadCursorW(ptr::null_mut(), winapi::IDC_ARROW),
+            hInstance: winapi::um::libloaderapi::GetModuleHandleW(ptr::null()),
+            hIcon: winapi::um::winuser::LoadIconW(ptr::null_mut(), winapi::um::winuser::IDI_APPLICATION),
+            hCursor: winapi::um::winuser::LoadCursorW(ptr::null_mut(), winapi::um::winuser::IDC_ARROW),
             hbrBackground: ptr::null_mut(),
             lpszMenuName: ptr::null(),
             lpszClassName: class_name.as_ptr(),
             hIconSm: ptr::null_mut(),
         };
-        user32::RegisterClassExW(&class);
+        winapi::um::winuser::RegisterClassExW(&class);
 
         class_name
     }
 }
 
-unsafe fn create_window(window_name: &str, width: i32, height: i32) -> winapi::HWND {
+unsafe fn create_window(window_name: &str, width: i32, height: i32) -> winapi::shared::windef::HWND {
     let class_name = register_window_class();
 
-    let mut rect = winapi::RECT {
+    let mut rect = winapi::shared::windef::RECT {
         left: 0,
         top: 0,
         right: width,
         bottom: height,
     };
-    let style = winapi::WS_OVERLAPPEDWINDOW;
-    let exstyle = winapi::WS_EX_APPWINDOW;
+    let style = winapi::um::winuser::WS_OVERLAPPEDWINDOW;
+    let exstyle = winapi::um::winuser::WS_EX_APPWINDOW;
 
-    user32::AdjustWindowRectEx(&mut rect, style, winapi::FALSE, exstyle);
+    winapi::um::winuser::AdjustWindowRectEx(&mut rect, style, winapi::shared::minwindef::FALSE, exstyle);
     let window_name = OsStr::new(window_name)
         .encode_wide()
         .chain(Some(0).into_iter())
         .collect::<Vec<_>>();
 
-    user32::CreateWindowExW(exstyle,
+    winapi::um::winuser::CreateWindowExW(exstyle,
                             class_name.as_ptr(),
-                            window_name.as_ptr() as winapi::LPCWSTR,
-                            style | winapi::WS_VISIBLE,
-                            winapi::CW_USEDEFAULT,
-                            winapi::CW_USEDEFAULT,
+                            window_name.as_ptr() as winapi::shared::ntdef::LPCWSTR,
+                            style | winapi::um::winuser::WS_VISIBLE,
+                            winapi::um::winuser::CW_USEDEFAULT,
+                            winapi::um::winuser::CW_USEDEFAULT,
                             rect.right - rect.left,
                             rect.bottom - rect.top,
                             ptr::null_mut(),
                             ptr::null_mut(),
-                            kernel32::GetModuleHandleW(ptr::null()),
+                            winapi::um::libloaderapi::GetModuleHandleW(ptr::null()),
                             ptr::null_mut())
 }
 
-unsafe extern "system" fn callback(wnd: winapi::HWND, msg: winapi::UINT, wparam: winapi::WPARAM, lparam: winapi::LPARAM) -> winapi::LRESULT {
+unsafe extern "system" fn callback(wnd: winapi::shared::windef::HWND, msg: winapi::shared::minwindef::UINT, wparam: winapi::shared::minwindef::WPARAM, lparam: winapi::shared::minwindef::LPARAM) -> winapi::shared::minwindef::LRESULT {
     match msg {
-        winapi::WM_DESTROY => {
-            user32::PostQuitMessage(0);
+        winapi::um::winuser::WM_DESTROY => {
+            winapi::um::winuser::PostQuitMessage(0);
             return 0;
         }
         _ => {
@@ -108,7 +106,7 @@ unsafe extern "system" fn callback(wnd: winapi::HWND, msg: winapi::UINT, wparam:
         }
     }
 
-    user32::DefWindowProcW(wnd, msg, wparam, lparam)
+    winapi::um::winuser::DefWindowProcW(wnd, msg, wparam, lparam)
 }
 
-static mut EVENTS: Option<Vec<(winapi::HWND, winapi::UINT, winapi::WPARAM, winapi::LPARAM)>> = None;
+static mut EVENTS: Option<Vec<(winapi::shared::windef::HWND, winapi::shared::minwindef::UINT, winapi::shared::minwindef::WPARAM, winapi::shared::minwindef::LPARAM)>> = None;

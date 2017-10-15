@@ -1,11 +1,6 @@
-#![cfg_attr(feature = "own_window", feature(drop_types_in_const))]
-
 extern crate nuklear_rust;
 
 extern crate winapi;
-extern crate gdi32;
-extern crate kernel32;
-extern crate user32;
 
 #[cfg(feature = "piston_image")]
 extern crate image;
@@ -22,13 +17,13 @@ pub type FontID = usize;
 struct GdiFont {
     nk: nksys::nk_user_font,
     height: i32,
-    handle: winapi::HFONT,
-    dc: winapi::HDC,
+    handle: winapi::shared::windef::HFONT,
+    dc: winapi::shared::windef::HDC,
 }
 
 impl GdiFont {
     pub unsafe fn new(name: &str, size: i32) -> GdiFont {
-        let mut metric = winapi::TEXTMETRICW {
+        let mut metric = winapi::um::wingdi::TEXTMETRICW {
             tmHeight: 0,
             tmAscent: 0,
             tmDescent: 0,
@@ -50,29 +45,29 @@ impl GdiFont {
             tmPitchAndFamily: 0,
             tmCharSet: 0,
         };
-        let handle = gdi32::CreateFontA(size,
+        let handle = winapi::um::wingdi::CreateFontA(size,
                                         0,
                                         0,
                                         0,
-                                        winapi::FW_NORMAL,
-                                        winapi::FALSE as u32,
-                                        winapi::FALSE as u32,
-                                        winapi::FALSE as u32,
-                                        winapi::DEFAULT_CHARSET,
-                                        winapi::OUT_DEFAULT_PRECIS,
-                                        winapi::CLIP_DEFAULT_PRECIS,
-                                        winapi::CLEARTYPE_QUALITY,
-                                        winapi::DEFAULT_PITCH | winapi::FF_DONTCARE,
+                                        winapi::um::wingdi::FW_NORMAL,
+                                        winapi::shared::minwindef::FALSE as u32,
+                                        winapi::shared::minwindef::FALSE as u32,
+                                        winapi::shared::minwindef::FALSE as u32,
+                                        winapi::um::wingdi::DEFAULT_CHARSET,
+                                        winapi::um::wingdi::OUT_DEFAULT_PRECIS,
+                                        winapi::um::wingdi::CLIP_DEFAULT_PRECIS,
+                                        winapi::um::wingdi::CLEARTYPE_QUALITY,
+                                        winapi::um::wingdi::DEFAULT_PITCH | winapi::um::wingdi::FF_DONTCARE,
                                         name.as_ptr() as *const i8);
-        let dc = gdi32::CreateCompatibleDC(ptr::null_mut());
+        let dc = winapi::um::wingdi::CreateCompatibleDC(ptr::null_mut());
 
-        gdi32::SelectObject(dc, handle as *mut raw::c_void);
-        gdi32::GetTextMetricsW(dc, &mut metric);
+        winapi::um::wingdi::SelectObject(dc, handle as *mut winapi::ctypes::c_void);
+        winapi::um::wingdi::GetTextMetricsW(dc, &mut metric);
 
         GdiFont {
             nk: mem::uninitialized(),
             height: metric.tmHeight,
-            handle: handle as winapi::HFONT,
+            handle: handle as winapi::shared::windef::HFONT,
             dc: dc,
         }
     }
@@ -81,37 +76,37 @@ impl GdiFont {
 impl Drop for GdiFont {
     fn drop(&mut self) {
         unsafe {
-            gdi32::DeleteObject(self.handle as *mut raw::c_void);
-            gdi32::DeleteDC(self.dc);
+            winapi::um::wingdi::DeleteObject(self.handle as *mut winapi::ctypes::c_void);
+            winapi::um::wingdi::DeleteDC(self.dc);
         }
     }
 }
 
 pub struct Drawer {
-    bitmap: winapi::HBITMAP,
-    window_dc: winapi::HDC,
-    memory_dc: winapi::HDC,
+    bitmap: winapi::shared::windef::HBITMAP,
+    window_dc: winapi::shared::windef::HDC,
+    memory_dc: winapi::shared::windef::HDC,
     width: i32,
     height: i32,
     fonts: Vec<GdiFont>,
 
-    window: Option<winapi::HWND>,
+    window: Option<winapi::shared::windef::HWND>,
 }
 
 impl Drawer {
-    pub fn new(window_dc: winapi::HDC, width: u16, height: u16, window: Option<winapi::HWND>) -> Drawer {
+    pub fn new(window_dc: winapi::shared::windef::HDC, width: u16, height: u16, window: Option<winapi::shared::windef::HWND>) -> Drawer {
         unsafe {
             let drawer = Drawer {
-                bitmap: gdi32::CreateCompatibleBitmap(window_dc, width as i32, height as i32),
+                bitmap: winapi::um::wingdi::CreateCompatibleBitmap(window_dc, width as i32, height as i32),
                 window_dc: window_dc,
-                memory_dc: gdi32::CreateCompatibleDC(window_dc),
+                memory_dc: winapi::um::wingdi::CreateCompatibleDC(window_dc),
                 width: width as i32,
                 height: height as i32,
                 fonts: Vec::new(),
 
                 window: window,
             };
-            gdi32::SelectObject(drawer.memory_dc, drawer.bitmap as *mut raw::c_void);
+            winapi::um::wingdi::SelectObject(drawer.memory_dc, drawer.bitmap as *mut winapi::ctypes::c_void);
 
             drawer
         }
@@ -119,26 +114,26 @@ impl Drawer {
 
     pub fn install_statics(&self, context: &mut NkContext) {
         unsafe {
-            let mut context: &mut nksys::nk_context = mem::transmute(context);
+            let context: &mut nksys::nk_context = mem::transmute(context);
             context.clip.copy = Some(nk_gdi_clipbard_copy);
             context.clip.paste = Some(nk_gdi_clipbard_paste);
         }
     }
 
-    pub fn window(&self) -> Option<winapi::HWND> {
+    pub fn window(&self) -> Option<winapi::shared::windef::HWND> {
         self.window
     }
 
     pub fn process_events(&mut self, ctx: &mut NkContext) -> bool {
         unsafe {
-            let mut msg: winapi::MSG = mem::zeroed();
+            let mut msg: winapi::um::winuser::MSG = mem::zeroed();
             ctx.input_begin();
 
-            if user32::GetMessageW(&mut msg, ptr::null_mut(), 0, 0) <= 0 {
+            if winapi::um::winuser::GetMessageW(&mut msg, ptr::null_mut(), 0, 0) <= 0 {
                 return false;
             } else {
-                user32::TranslateMessage(&mut msg);
-                user32::DispatchMessageW(&mut msg);
+                winapi::um::winuser::TranslateMessage(&mut msg);
+                winapi::um::winuser::DispatchMessageW(&mut msg);
             }
 
             #[cfg(feature = "own_window")]
@@ -154,7 +149,7 @@ impl Drawer {
             .push(unsafe { GdiFont::new(name, size as i32) });
 
         let index = self.fonts.len() - 1;
-        let mut gdifont = &mut self.fonts[index];
+        let gdifont = &mut self.fonts[index];
 
         unsafe {
             ptr::write(&mut gdifont.nk,
@@ -187,16 +182,16 @@ impl Drawer {
 
         let (w, h) = img.dimensions();
 
-        let hbmp: winapi::HBITMAP;
+        let hbmp: winapi::shared::windef::HBITMAP;
 
-        let bminfo = winapi::BITMAPINFO {
-            bmiHeader: winapi::BITMAPINFOHEADER {
-                biSize: mem::size_of::<winapi::BITMAPINFOHEADER>() as u32,
+        let bminfo = winapi::um::wingdi::BITMAPINFO {
+            bmiHeader: winapi::um::wingdi::BITMAPINFOHEADER {
+                biSize: mem::size_of::<winapi::um::wingdi::BITMAPINFOHEADER>() as u32,
                 biWidth: w as i32,
                 biHeight: h as i32,
                 biPlanes: 1,
                 biBitCount: 32,
-                biCompression: winapi::BI_RGB,
+                biCompression: winapi::um::wingdi::BI_RGB,
                 biSizeImage: 0,
                 biXPelsPerMeter: 0,
                 biYPelsPerMeter: 0,
@@ -208,14 +203,14 @@ impl Drawer {
 
         unsafe {
             let mut pv_image_bits = ptr::null_mut();
-            let hdc_screen = user32::GetDC(ptr::null_mut());
-            hbmp = gdi32::CreateDIBSection(hdc_screen,
+            let hdc_screen = winapi::um::winuser::GetDC(ptr::null_mut());
+            hbmp = winapi::um::wingdi::CreateDIBSection(hdc_screen,
                                            &bminfo,
-                                           winapi::DIB_RGB_COLORS,
+                                           winapi::um::wingdi::DIB_RGB_COLORS,
                                            &mut pv_image_bits,
                                            ptr::null_mut(),
                                            0);
-            user32::ReleaseDC(ptr::null_mut(), hdc_screen);
+            winapi::um::winuser::ReleaseDC(ptr::null_mut(), hdc_screen);
             /*if hbmp.is_null() {
 		        return;
 		    }*/
@@ -230,7 +225,7 @@ impl Drawer {
             }
             /*{
 		        // couldn't extract image; delete HBITMAP
-		        gdi32::DeleteObject(hbmp as *mut raw::c_void);
+		        winapi::um::wingdi::DeleteObject(hbmp as *mut winapi::ctypes::c_void);
 		        hbmp = ptr::null_mut();
 		        return;
 		    }*/
@@ -240,57 +235,57 @@ impl Drawer {
         NkHandle::from_ptr(hbmp as *mut raw::c_void)
     }
 
-    pub fn handle_event(&mut self, ctx: &mut NkContext, wnd: winapi::HWND, msg: winapi::UINT, wparam: winapi::WPARAM, lparam: winapi::LPARAM) -> bool {
+    pub fn handle_event(&mut self, ctx: &mut NkContext, wnd: winapi::shared::windef::HWND, msg: winapi::shared::minwindef::UINT, wparam: winapi::shared::minwindef::WPARAM, lparam: winapi::shared::minwindef::LPARAM) -> bool {
         match msg {
-            winapi::WM_SIZE => {
+            winapi::um::winuser::WM_SIZE => {
                 let width = lparam as u16;
                 let height = (lparam >> 16) as u16;
                 if width as i32 != self.width || height as i32 != self.height {
                     unsafe {
-                        gdi32::DeleteObject(self.bitmap as *mut raw::c_void);
-                        self.bitmap = gdi32::CreateCompatibleBitmap(self.window_dc, width as i32, height as i32);
+                        winapi::um::wingdi::DeleteObject(self.bitmap as *mut winapi::ctypes::c_void);
+                        self.bitmap = winapi::um::wingdi::CreateCompatibleBitmap(self.window_dc, width as i32, height as i32);
                         self.width = width as i32;
                         self.height = height as i32;
-                        gdi32::SelectObject(self.memory_dc, self.bitmap as *mut raw::c_void);
+                        winapi::um::wingdi::SelectObject(self.memory_dc, self.bitmap as *mut winapi::ctypes::c_void);
                     }
                 }
             }
-            winapi::WM_PAINT => {
+            winapi::um::winuser::WM_PAINT => {
                 unsafe {
-                    let mut paint: winapi::PAINTSTRUCT = mem::zeroed();
-                    let dc = user32::BeginPaint(wnd, &mut paint);
+                    let mut paint: winapi::um::winuser::PAINTSTRUCT = mem::zeroed();
+                    let dc = winapi::um::winuser::BeginPaint(wnd, &mut paint);
                     self.blit(dc);
-                    user32::EndPaint(wnd, &paint);
+                    winapi::um::winuser::EndPaint(wnd, &paint);
                 }
                 return true;
             }
-            winapi::WM_KEYDOWN |
-            winapi::WM_KEYUP |
-            winapi::WM_SYSKEYDOWN |
-            winapi::WM_SYSKEYUP => {
+            winapi::um::winuser::WM_KEYDOWN |
+            winapi::um::winuser::WM_KEYUP |
+            winapi::um::winuser::WM_SYSKEYDOWN |
+            winapi::um::winuser::WM_SYSKEYUP => {
                 let down = ((lparam >> 31) & 1) == 0;
-                let ctrl = unsafe { (user32::GetKeyState(winapi::VK_CONTROL) & (1 << 15)) != 0 };
+                let ctrl = unsafe { (winapi::um::winuser::GetKeyState(winapi::um::winuser::VK_CONTROL) & (1 << 15)) != 0 };
 
                 match wparam as i32 {
-                    winapi::VK_SHIFT |
-                    winapi::VK_LSHIFT |
-                    winapi::VK_RSHIFT => {
+                    winapi::um::winuser::VK_SHIFT |
+                    winapi::um::winuser::VK_LSHIFT |
+                    winapi::um::winuser::VK_RSHIFT => {
                         ctx.input_key(NkKey::NK_KEY_SHIFT, down);
                         return true;
                     }
-                    winapi::VK_DELETE => {
+                    winapi::um::winuser::VK_DELETE => {
                         ctx.input_key(NkKey::NK_KEY_DEL, down);
                         return true;
                     }
-                    winapi::VK_RETURN => {
+                    winapi::um::winuser::VK_RETURN => {
                         ctx.input_key(NkKey::NK_KEY_ENTER, down);
                         return true;
                     }
-                    winapi::VK_TAB => {
+                    winapi::um::winuser::VK_TAB => {
                         ctx.input_key(NkKey::NK_KEY_TAB, down);
                         return true;
                     }
-                    winapi::VK_LEFT => {
+                    winapi::um::winuser::VK_LEFT => {
                         if ctrl {
                             ctx.input_key(NkKey::NK_KEY_TEXT_WORD_LEFT, down);
                         } else {
@@ -298,7 +293,7 @@ impl Drawer {
                         }
                         return true;
                     }
-                    winapi::VK_RIGHT => {
+                    winapi::um::winuser::VK_RIGHT => {
                         if ctrl {
                             ctx.input_key(NkKey::NK_KEY_TEXT_WORD_RIGHT, down);
                         } else {
@@ -306,25 +301,25 @@ impl Drawer {
                         }
                         return true;
                     }
-                    winapi::VK_BACK => {
+                    winapi::um::winuser::VK_BACK => {
                         ctx.input_key(NkKey::NK_KEY_BACKSPACE, down);
                         return true;
                     }
-                    winapi::VK_HOME => {
+                    winapi::um::winuser::VK_HOME => {
                         ctx.input_key(NkKey::NK_KEY_TEXT_START, down);
                         ctx.input_key(NkKey::NK_KEY_SCROLL_START, down);
                         return true;
                     }
-                    winapi::VK_END => {
+                    winapi::um::winuser::VK_END => {
                         ctx.input_key(NkKey::NK_KEY_TEXT_END, down);
                         ctx.input_key(NkKey::NK_KEY_SCROLL_END, down);
                         return true;
                     }
-                    winapi::VK_NEXT => {
+                    winapi::um::winuser::VK_NEXT => {
                         ctx.input_key(NkKey::NK_KEY_SCROLL_DOWN, down);
                         return true;
                     }
-                    winapi::VK_PRIOR => {
+                    winapi::um::winuser::VK_PRIOR => {
                         ctx.input_key(NkKey::NK_KEY_SCROLL_UP, down);
                         return true;
                     }
@@ -364,77 +359,77 @@ impl Drawer {
                     _ => {}
                 }
             }
-            winapi::WM_CHAR => {
+            winapi::um::winuser::WM_CHAR => {
                 if wparam >= 32 {
                     unsafe { ctx.input_unicode(::std::char::from_u32_unchecked(wparam as u32)); }
                     return true;
                 }
             }
-            winapi::WM_LBUTTONDOWN => {
+            winapi::um::winuser::WM_LBUTTONDOWN => {
                 ctx.input_button(NkButton::NK_BUTTON_LEFT,
                                  lparam as u16 as i32,
                                  (lparam >> 16) as u16 as i32,
                                  true);
                 unsafe {
-                    user32::SetCapture(wnd);
+                    winapi::um::winuser::SetCapture(wnd);
                 }
                 return true;
             }
-            winapi::WM_LBUTTONUP => {
+            winapi::um::winuser::WM_LBUTTONUP => {
                 ctx.input_button(NkButton::NK_BUTTON_LEFT,
                                  lparam as u16 as i32,
                                  (lparam >> 16) as u16 as i32,
                                  false);
                 unsafe {
-                    user32::ReleaseCapture();
+                    winapi::um::winuser::ReleaseCapture();
                 }
                 return true;
             }
-            winapi::WM_RBUTTONDOWN => {
+            winapi::um::winuser::WM_RBUTTONDOWN => {
                 ctx.input_button(NkButton::NK_BUTTON_RIGHT,
                                  lparam as u16 as i32,
                                  (lparam >> 16) as u16 as i32,
                                  true);
                 unsafe {
-                    user32::SetCapture(wnd);
+                    winapi::um::winuser::SetCapture(wnd);
                 }
                 return true;
             }
-            winapi::WM_RBUTTONUP => {
+            winapi::um::winuser::WM_RBUTTONUP => {
                 ctx.input_button(NkButton::NK_BUTTON_RIGHT,
                                  lparam as u16 as i32,
                                  (lparam >> 16) as u16 as i32,
                                  false);
                 unsafe {
-                    user32::ReleaseCapture();
+                    winapi::um::winuser::ReleaseCapture();
                 }
                 return true;
             }
-            winapi::WM_MBUTTONDOWN => {
+            winapi::um::winuser::WM_MBUTTONDOWN => {
                 ctx.input_button(NkButton::NK_BUTTON_MIDDLE,
                                  lparam as u16 as i32,
                                  (lparam >> 16) as u16 as i32,
                                  true);
                 unsafe {
-                    user32::SetCapture(wnd);
+                    winapi::um::winuser::SetCapture(wnd);
                 }
                 return true;
             }
-            winapi::WM_MBUTTONUP => {
+            winapi::um::winuser::WM_MBUTTONUP => {
                 ctx.input_button(NkButton::NK_BUTTON_MIDDLE,
                                  lparam as u16 as i32,
                                  (lparam >> 16) as u16 as i32,
                                  false);
                 unsafe {
-                    user32::ReleaseCapture();
+                    winapi::um::winuser::ReleaseCapture();
                 }
                 return true;
             }
-            winapi::WM_MOUSEWHEEL => {
-                ctx.input_scroll(((wparam >> 16) as u16) as f32 / winapi::WHEEL_DELTA as f32);
+            winapi::um::winuser::WM_MOUSEWHEEL => {
+                ctx.input_scroll(((wparam >> 16) as u16) as f32 / winapi::um::winuser::WHEEL_DELTA as f32);
                 return true;
             }
-            winapi::WM_MOUSEMOVE => {
+            winapi::um::winuser::WM_MOUSEMOVE => {
                 ctx.input_motion(lparam as u16 as i32, (lparam >> 16) as u16 as i32);
                 return true;
             }
@@ -446,8 +441,8 @@ impl Drawer {
     pub fn render(&self, ctx: &mut NkContext, clear: NkColor) {
         unsafe {
             let memory_dc = self.memory_dc;
-            gdi32::SelectObject(memory_dc, gdi32::GetStockObject(winapi::DC_PEN));
-            gdi32::SelectObject(memory_dc, gdi32::GetStockObject(winapi::DC_BRUSH));
+            winapi::um::wingdi::SelectObject(memory_dc, winapi::um::wingdi::GetStockObject(winapi::um::wingdi::DC_PEN as i32));
+            winapi::um::wingdi::SelectObject(memory_dc, winapi::um::wingdi::GetStockObject(winapi::um::wingdi::DC_BRUSH as i32));
             self.clear_dc(memory_dc, clear);
 
             for cmd in ctx.command_iterator() {
@@ -618,28 +613,28 @@ impl Drawer {
         }
     }
 
-    unsafe fn clear_dc(&self, dc: winapi::HDC, col: NkColor) {
+    unsafe fn clear_dc(&self, dc: winapi::shared::windef::HDC, col: NkColor) {
         let color = convert_color(col);
-        let rect = winapi::RECT {
+        let rect = winapi::shared::windef::RECT {
             left: 0,
             top: 0,
             right: self.width,
             bottom: self.height,
         };
-        gdi32::SetBkColor(dc, color);
+        winapi::um::wingdi::SetBkColor(dc, color);
 
-        gdi32::ExtTextOutW(dc,
+        winapi::um::wingdi::ExtTextOutW(dc,
                            0,
                            0,
-                           winapi::ETO_OPAQUE,
+                           winapi::um::wingdi::ETO_OPAQUE,
                            &rect,
                            ptr::null_mut(),
                            0,
                            ptr::null_mut());
     }
 
-    unsafe fn blit(&self, dc: winapi::HDC) {
-        gdi32::BitBlt(dc,
+    unsafe fn blit(&self, dc: winapi::shared::windef::HDC) {
+        winapi::um::wingdi::BitBlt(dc,
                       0,
                       0,
                       self.width,
@@ -647,301 +642,301 @@ impl Drawer {
                       self.memory_dc,
                       0,
                       0,
-                      winapi::SRCCOPY);
+                      winapi::um::wingdi::SRCCOPY);
     }
 }
 
 impl Drop for Drawer {
     fn drop(&mut self) {
         unsafe {
-            gdi32::DeleteObject(self.memory_dc as *mut raw::c_void);
-            gdi32::DeleteObject(self.bitmap as *mut raw::c_void);
+            winapi::um::wingdi::DeleteObject(self.memory_dc as *mut winapi::ctypes::c_void);
+            winapi::um::wingdi::DeleteObject(self.bitmap as *mut winapi::ctypes::c_void);
         }
     }
 }
 
-fn convert_color(c: NkColor) -> winapi::COLORREF {
+fn convert_color(c: NkColor) -> winapi::shared::windef::COLORREF {
     c.r as u32 | ((c.g as u32) << 8) | ((c.b as u32) << 16)
 }
 
-unsafe fn nk_gdi_scissor(dc: winapi::HDC, x: f32, y: f32, w: f32, h: f32) {
-    gdi32::SelectClipRgn(dc, ptr::null_mut());
-    gdi32::IntersectClipRect(dc,
+unsafe fn nk_gdi_scissor(dc: winapi::shared::windef::HDC, x: f32, y: f32, w: f32, h: f32) {
+    winapi::um::wingdi::SelectClipRgn(dc, ptr::null_mut());
+    winapi::um::wingdi::IntersectClipRect(dc,
                              x as i32,
                              y as i32,
                              (x + w + 1.0) as i32,
                              (y + h + 1.0) as i32);
 }
 
-unsafe fn nk_gdi_stroke_line(dc: winapi::HDC, x0: i32, y0: i32, x1: i32, y1: i32, line_thickness: i32, col: NkColor) {
+unsafe fn nk_gdi_stroke_line(dc: winapi::shared::windef::HDC, x0: i32, y0: i32, x1: i32, y1: i32, line_thickness: i32, col: NkColor) {
     let color = convert_color(col);
 
     let mut pen = ptr::null_mut();
     if line_thickness == 1 {
-        gdi32::SetDCPenColor(dc, color);
+        winapi::um::wingdi::SetDCPenColor(dc, color);
     } else {
-        pen = gdi32::CreatePen(winapi::PS_SOLID, line_thickness, color);
-        gdi32::SelectObject(dc, pen as *mut raw::c_void);
+        pen = winapi::um::wingdi::CreatePen(winapi::um::wingdi::PS_SOLID as i32, line_thickness, color);
+        winapi::um::wingdi::SelectObject(dc, pen as *mut winapi::ctypes::c_void);
     }
 
-    gdi32::MoveToEx(dc, x0, y0, ptr::null_mut());
-    gdi32::LineTo(dc, x1, y1);
+    winapi::um::wingdi::MoveToEx(dc, x0, y0, ptr::null_mut());
+    winapi::um::wingdi::LineTo(dc, x1, y1);
 
     if !pen.is_null() {
-        gdi32::SelectObject(dc, gdi32::GetStockObject(winapi::DC_PEN));
-        gdi32::DeleteObject(pen as *mut raw::c_void);
+        winapi::um::wingdi::SelectObject(dc, winapi::um::wingdi::GetStockObject(winapi::um::wingdi::DC_PEN as i32));
+        winapi::um::wingdi::DeleteObject(pen as *mut winapi::ctypes::c_void);
     }
 }
 
-unsafe fn nk_gdi_stroke_rect(dc: winapi::HDC, x: i32, y: i32, w: i32, h: i32, r: i32, line_thickness: i32, col: NkColor) {
+unsafe fn nk_gdi_stroke_rect(dc: winapi::shared::windef::HDC, x: i32, y: i32, w: i32, h: i32, r: i32, line_thickness: i32, col: NkColor) {
     let color = convert_color(col);
 
     let mut pen = ptr::null_mut();
     if line_thickness == 1 {
-        gdi32::SetDCPenColor(dc, color);
+        winapi::um::wingdi::SetDCPenColor(dc, color);
     } else {
-        pen = gdi32::CreatePen(winapi::PS_SOLID, line_thickness, color);
-        gdi32::SelectObject(dc, pen as *mut raw::c_void);
+        pen = winapi::um::wingdi::CreatePen(winapi::um::wingdi::PS_SOLID as i32, line_thickness, color);
+        winapi::um::wingdi::SelectObject(dc, pen as *mut winapi::ctypes::c_void);
     }
 
     if r == 0 {
-        gdi32::Rectangle(dc, x, y, x + w, y + h);
+        winapi::um::wingdi::Rectangle(dc, x, y, x + w, y + h);
     } else {
-        gdi32::RoundRect(dc, x, y, x + w, y + h, r, r);
+        winapi::um::wingdi::RoundRect(dc, x, y, x + w, y + h, r, r);
     }
 
     if !pen.is_null() {
-        gdi32::SelectObject(dc, gdi32::GetStockObject(winapi::DC_PEN));
-        gdi32::DeleteObject(pen as *mut raw::c_void);
+        winapi::um::wingdi::SelectObject(dc, winapi::um::wingdi::GetStockObject(winapi::um::wingdi::DC_PEN as i32));
+        winapi::um::wingdi::DeleteObject(pen as *mut winapi::ctypes::c_void);
     }
 }
 
-unsafe fn nk_gdi_fill_rect(dc: winapi::HDC, x: i32, y: i32, w: i32, h: i32, r: i32, col: NkColor) {
+unsafe fn nk_gdi_fill_rect(dc: winapi::shared::windef::HDC, x: i32, y: i32, w: i32, h: i32, r: i32, col: NkColor) {
     let color = convert_color(col);
 
     if r == 0 {
-        let rect = winapi::RECT {
+        let rect = winapi::shared::windef::RECT {
             left: x,
             top: y,
             right: x + w,
             bottom: y + h,
         };
-        gdi32::SetBkColor(dc, color);
-        gdi32::ExtTextOutW(dc,
+        winapi::um::wingdi::SetBkColor(dc, color);
+        winapi::um::wingdi::ExtTextOutW(dc,
                            0,
                            0,
-                           winapi::ETO_OPAQUE,
+                           winapi::um::wingdi::ETO_OPAQUE,
                            &rect,
                            ptr::null_mut(),
                            0,
                            ptr::null_mut());
     } else {
-        gdi32::SetDCPenColor(dc, color);
-        gdi32::SetDCBrushColor(dc, color);
-        gdi32::RoundRect(dc, x, y, x + w, y + h, r, r);
+        winapi::um::wingdi::SetDCPenColor(dc, color);
+        winapi::um::wingdi::SetDCBrushColor(dc, color);
+        winapi::um::wingdi::RoundRect(dc, x, y, x + w, y + h, r, r);
     }
-    gdi32::SetDCBrushColor(dc, color);
+    winapi::um::wingdi::SetDCBrushColor(dc, color);
 }
 
-unsafe fn nk_gdi_fill_triangle(dc: winapi::HDC, x0: i32, y0: i32, x1: i32, y1: i32, x2: i32, y2: i32, col: NkColor) {
+unsafe fn nk_gdi_fill_triangle(dc: winapi::shared::windef::HDC, x0: i32, y0: i32, x1: i32, y1: i32, x2: i32, y2: i32, col: NkColor) {
     let color = convert_color(col);
-    let points = [winapi::POINT { x: x0, y: y0 }, winapi::POINT { x: x1, y: y1 }, winapi::POINT { x: x2, y: y2 }];
+    let points = [winapi::shared::windef::POINT { x: x0, y: y0 }, winapi::shared::windef::POINT { x: x1, y: y1 }, winapi::shared::windef::POINT { x: x2, y: y2 }];
 
-    gdi32::SetDCPenColor(dc, color);
-    gdi32::SetDCBrushColor(dc, color);
-    gdi32::Polygon(dc, &points[0] as *const winapi::POINT, points.len() as i32);
+    winapi::um::wingdi::SetDCPenColor(dc, color);
+    winapi::um::wingdi::SetDCBrushColor(dc, color);
+    winapi::um::wingdi::Polygon(dc, &points[0] as *const winapi::shared::windef::POINT, points.len() as i32);
 }
 
-unsafe fn nk_gdi_stroke_triangle(dc: winapi::HDC, x0: i32, y0: i32, x1: i32, y1: i32, x2: i32, y2: i32, line_thickness: i32, col: NkColor) {
+unsafe fn nk_gdi_stroke_triangle(dc: winapi::shared::windef::HDC, x0: i32, y0: i32, x1: i32, y1: i32, x2: i32, y2: i32, line_thickness: i32, col: NkColor) {
     let color = convert_color(col);
-    let points = [winapi::POINT { x: x0, y: y0 }, winapi::POINT { x: x1, y: y1 }, winapi::POINT { x: x2, y: y2 }, winapi::POINT { x: x0, y: y0 }];
+    let points = [winapi::shared::windef::POINT { x: x0, y: y0 }, winapi::shared::windef::POINT { x: x1, y: y1 }, winapi::shared::windef::POINT { x: x2, y: y2 }, winapi::shared::windef::POINT { x: x0, y: y0 }];
 
     let mut pen = ptr::null_mut();
     if line_thickness == 1 {
-        gdi32::SetDCPenColor(dc, color);
+        winapi::um::wingdi::SetDCPenColor(dc, color);
     } else {
-        pen = gdi32::CreatePen(winapi::PS_SOLID, line_thickness, color);
-        gdi32::SelectObject(dc, pen as *mut raw::c_void);
+        pen = winapi::um::wingdi::CreatePen(winapi::um::wingdi::PS_SOLID as i32, line_thickness, color);
+        winapi::um::wingdi::SelectObject(dc, pen as *mut winapi::ctypes::c_void);
     }
 
-    gdi32::Polyline(dc, &points[0] as *const winapi::POINT, points.len() as i32);
+    winapi::um::wingdi::Polyline(dc, &points[0] as *const winapi::shared::windef::POINT, points.len() as i32);
 
     if !pen.is_null() {
-        gdi32::SelectObject(dc, gdi32::GetStockObject(winapi::DC_PEN));
-        gdi32::DeleteObject(pen as *mut raw::c_void);
+        winapi::um::wingdi::SelectObject(dc, winapi::um::wingdi::GetStockObject(winapi::um::wingdi::DC_PEN as i32));
+        winapi::um::wingdi::DeleteObject(pen as *mut winapi::ctypes::c_void);
     }
 }
 
-unsafe fn nk_gdi_fill_polygon(dc: winapi::HDC, pnts: *const NkVec2i, count: usize, col: NkColor) {
+unsafe fn nk_gdi_fill_polygon(dc: winapi::shared::windef::HDC, pnts: *const NkVec2i, count: usize, col: NkColor) {
     if count < 1 {
         return;
     }
 
-    let mut points = [winapi::POINT { x: 0, y: 0 }; 64];
+    let mut points = [winapi::shared::windef::POINT { x: 0, y: 0 }; 64];
     let color = convert_color(col);
-    gdi32::SetDCBrushColor(dc, color);
-    gdi32::SetDCPenColor(dc, color);
+    winapi::um::wingdi::SetDCBrushColor(dc, color);
+    winapi::um::wingdi::SetDCPenColor(dc, color);
     let pnts = slice::from_raw_parts(pnts, count);
     for (i, pnt) in pnts.iter().enumerate() {
         points[i].x = pnt.x as i32;
         points[i].y = pnt.y as i32;
     }
-    gdi32::Polygon(dc, &points[0], pnts.len() as i32);
+    winapi::um::wingdi::Polygon(dc, &points[0], pnts.len() as i32);
 }
 
-unsafe fn nk_gdi_stroke_polygon(dc: winapi::HDC, pnts: *const NkVec2i, count: usize, line_thickness: i32, col: NkColor) {
+unsafe fn nk_gdi_stroke_polygon(dc: winapi::shared::windef::HDC, pnts: *const NkVec2i, count: usize, line_thickness: i32, col: NkColor) {
     let color = convert_color(col);
     let mut pen = ptr::null_mut();
     if line_thickness == 1 {
-        gdi32::SetDCPenColor(dc, color);
+        winapi::um::wingdi::SetDCPenColor(dc, color);
     } else {
-        pen = gdi32::CreatePen(winapi::PS_SOLID, line_thickness, color);
-        gdi32::SelectObject(dc, pen as *mut raw::c_void);
+        pen = winapi::um::wingdi::CreatePen(winapi::um::wingdi::PS_SOLID as i32, line_thickness, color);
+        winapi::um::wingdi::SelectObject(dc, pen as *mut winapi::ctypes::c_void);
     }
 
     if count > 0 {
         let pnts = slice::from_raw_parts(pnts, count);
-        gdi32::MoveToEx(dc, pnts[0].x as i32, pnts[0].y as i32, ptr::null_mut());
+        winapi::um::wingdi::MoveToEx(dc, pnts[0].x as i32, pnts[0].y as i32, ptr::null_mut());
         for pnt in pnts.iter().skip(1) {
-            gdi32::LineTo(dc, pnt.x as i32, pnt.y as i32);
+            winapi::um::wingdi::LineTo(dc, pnt.x as i32, pnt.y as i32);
         }
-        gdi32::LineTo(dc, pnts[0].x as i32, pnts[0].y as i32);
+        winapi::um::wingdi::LineTo(dc, pnts[0].x as i32, pnts[0].y as i32);
     }
 
     if !pen.is_null() {
-        gdi32::SelectObject(dc, gdi32::GetStockObject(winapi::DC_PEN));
-        gdi32::DeleteObject(pen as *mut raw::c_void);
+        winapi::um::wingdi::SelectObject(dc, winapi::um::wingdi::GetStockObject(winapi::um::wingdi::DC_PEN as i32));
+        winapi::um::wingdi::DeleteObject(pen as *mut winapi::ctypes::c_void);
     }
 }
 
-unsafe fn nk_gdi_stroke_polyline(dc: winapi::HDC, pnts: *const NkVec2i, count: usize, line_thickness: i32, col: NkColor) {
+unsafe fn nk_gdi_stroke_polyline(dc: winapi::shared::windef::HDC, pnts: *const NkVec2i, count: usize, line_thickness: i32, col: NkColor) {
     let color = convert_color(col);
     let mut pen = ptr::null_mut();
     if line_thickness == 1 {
-        gdi32::SetDCPenColor(dc, color);
+        winapi::um::wingdi::SetDCPenColor(dc, color);
     } else {
-        pen = gdi32::CreatePen(winapi::PS_SOLID, line_thickness, color);
-        gdi32::SelectObject(dc, pen as *mut raw::c_void);
+        pen = winapi::um::wingdi::CreatePen(winapi::um::wingdi::PS_SOLID as i32, line_thickness, color);
+        winapi::um::wingdi::SelectObject(dc, pen as *mut winapi::ctypes::c_void);
     }
 
     if count > 0 {
         let pnts = slice::from_raw_parts(pnts, count);
-        gdi32::MoveToEx(dc, pnts[0].x as i32, pnts[0].y as i32, ptr::null_mut());
+        winapi::um::wingdi::MoveToEx(dc, pnts[0].x as i32, pnts[0].y as i32, ptr::null_mut());
         for pnt in pnts.iter().skip(1) {
-            gdi32::LineTo(dc, pnt.x as i32, pnt.y as i32);
+            winapi::um::wingdi::LineTo(dc, pnt.x as i32, pnt.y as i32);
         }
     }
 
     if !pen.is_null() {
-        gdi32::SelectObject(dc, gdi32::GetStockObject(winapi::DC_PEN));
-        gdi32::DeleteObject(pen as *mut raw::c_void);
+        winapi::um::wingdi::SelectObject(dc, winapi::um::wingdi::GetStockObject(winapi::um::wingdi::DC_PEN as i32));
+        winapi::um::wingdi::DeleteObject(pen as *mut winapi::ctypes::c_void);
     }
 }
 
-unsafe fn nk_gdi_fill_arc(dc: winapi::HDC, cx: i32, cy: i32, r: u32, a1: f32, a2: f32, color: NkColor) {
+unsafe fn nk_gdi_fill_arc(dc: winapi::shared::windef::HDC, cx: i32, cy: i32, r: u32, a1: f32, a2: f32, color: NkColor) {
     let color = convert_color(color);
-    gdi32::SetDCBrushColor(dc, color);
-    gdi32::SetDCPenColor(dc, color);
-    gdi32::AngleArc(dc, cx, cy, r, a1, a2);
+    winapi::um::wingdi::SetDCBrushColor(dc, color);
+    winapi::um::wingdi::SetDCPenColor(dc, color);
+    winapi::um::wingdi::AngleArc(dc, cx, cy, r, a1, a2);
 }
 
-unsafe fn nk_gdi_stroke_arc(dc: winapi::HDC, cx: i32, cy: i32, r: u32, a1: f32, a2: f32, line_thickness: i32, col: NkColor) {
+unsafe fn nk_gdi_stroke_arc(dc: winapi::shared::windef::HDC, cx: i32, cy: i32, r: u32, a1: f32, a2: f32, line_thickness: i32, col: NkColor) {
     let color = convert_color(col);
     let mut pen = ptr::null_mut();
     if line_thickness == 1 {
-        gdi32::SetDCPenColor(dc, color);
+        winapi::um::wingdi::SetDCPenColor(dc, color);
     } else {
-        pen = gdi32::CreatePen(winapi::PS_SOLID, line_thickness, color);
-        gdi32::SelectObject(dc, pen as *mut raw::c_void);
+        pen = winapi::um::wingdi::CreatePen(winapi::um::wingdi::PS_SOLID as i32, line_thickness, color);
+        winapi::um::wingdi::SelectObject(dc, pen as *mut winapi::ctypes::c_void);
     }
 
-    gdi32::AngleArc(dc, cx, cy, r, a1, a2);
+    winapi::um::wingdi::AngleArc(dc, cx, cy, r, a1, a2);
 
     if !pen.is_null() {
-        gdi32::SelectObject(dc, gdi32::GetStockObject(winapi::DC_PEN));
-        gdi32::DeleteObject(pen as *mut raw::c_void);
+        winapi::um::wingdi::SelectObject(dc, winapi::um::wingdi::GetStockObject(winapi::um::wingdi::DC_PEN as i32));
+        winapi::um::wingdi::DeleteObject(pen as *mut winapi::ctypes::c_void);
     }
 }
 
-unsafe fn nk_gdi_fill_circle(dc: winapi::HDC, x: i32, y: i32, w: i32, h: i32, col: NkColor) {
+unsafe fn nk_gdi_fill_circle(dc: winapi::shared::windef::HDC, x: i32, y: i32, w: i32, h: i32, col: NkColor) {
     let color = convert_color(col);
-    gdi32::SetDCBrushColor(dc, color);
-    gdi32::SetDCPenColor(dc, color);
-    gdi32::Ellipse(dc, x, y, x + w, y + h);
+    winapi::um::wingdi::SetDCBrushColor(dc, color);
+    winapi::um::wingdi::SetDCPenColor(dc, color);
+    winapi::um::wingdi::Ellipse(dc, x, y, x + w, y + h);
 }
 
-unsafe fn nk_gdi_stroke_circle(dc: winapi::HDC, x: i32, y: i32, w: i32, h: i32, line_thickness: i32, col: NkColor) {
+unsafe fn nk_gdi_stroke_circle(dc: winapi::shared::windef::HDC, x: i32, y: i32, w: i32, h: i32, line_thickness: i32, col: NkColor) {
     let color = convert_color(col);
     let mut pen = ptr::null_mut();
     if line_thickness == 1 {
-        gdi32::SetDCPenColor(dc, color);
+        winapi::um::wingdi::SetDCPenColor(dc, color);
     } else {
-        pen = gdi32::CreatePen(winapi::PS_SOLID, line_thickness, color);
-        gdi32::SelectObject(dc, pen as *mut raw::c_void);
+        pen = winapi::um::wingdi::CreatePen(winapi::um::wingdi::PS_SOLID as i32, line_thickness, color);
+        winapi::um::wingdi::SelectObject(dc, pen as *mut winapi::ctypes::c_void);
     }
 
-    gdi32::Ellipse(dc, x, y, x + w, y + h);
+    winapi::um::wingdi::Ellipse(dc, x, y, x + w, y + h);
 
     if !pen.is_null() {
-        gdi32::SelectObject(dc, gdi32::GetStockObject(winapi::DC_PEN));
-        gdi32::DeleteObject(pen as *mut raw::c_void);
+        winapi::um::wingdi::SelectObject(dc, winapi::um::wingdi::GetStockObject(winapi::um::wingdi::DC_PEN as i32));
+        winapi::um::wingdi::DeleteObject(pen as *mut winapi::ctypes::c_void);
     }
 }
 
-unsafe fn nk_gdi_stroke_curve(dc: winapi::HDC, p1: NkVec2i, p2: NkVec2i, p3: NkVec2i, p4: NkVec2i, line_thickness: i32, col: NkColor) {
+unsafe fn nk_gdi_stroke_curve(dc: winapi::shared::windef::HDC, p1: NkVec2i, p2: NkVec2i, p3: NkVec2i, p4: NkVec2i, line_thickness: i32, col: NkColor) {
     let color = convert_color(col);
-    let p = [winapi::POINT {
+    let p = [winapi::shared::windef::POINT {
                  x: p1.x as i32,
                  y: p1.y as i32,
              },
-             winapi::POINT {
+             winapi::shared::windef::POINT {
                  x: p2.x as i32,
                  y: p2.y as i32,
              },
-             winapi::POINT {
+             winapi::shared::windef::POINT {
                  x: p3.x as i32,
                  y: p3.y as i32,
              },
-             winapi::POINT {
+             winapi::shared::windef::POINT {
                  x: p4.x as i32,
                  y: p4.y as i32,
              }];
 
     let mut pen = ptr::null_mut();
     if line_thickness == 1 {
-        gdi32::SetDCPenColor(dc, color);
+        winapi::um::wingdi::SetDCPenColor(dc, color);
     } else {
-        pen = gdi32::CreatePen(winapi::PS_SOLID, line_thickness, color);
-        gdi32::SelectObject(dc, pen as *mut raw::c_void);
+        pen = winapi::um::wingdi::CreatePen(winapi::um::wingdi::PS_SOLID as i32, line_thickness, color);
+        winapi::um::wingdi::SelectObject(dc, pen as *mut winapi::ctypes::c_void);
     }
 
-    gdi32::PolyBezier(dc, &p[0], p.len() as u32);
+    winapi::um::wingdi::PolyBezier(dc, &p[0], p.len() as u32);
 
     if !pen.is_null() {
-        gdi32::SelectObject(dc, gdi32::GetStockObject(winapi::DC_PEN));
-        gdi32::DeleteObject(pen as *mut raw::c_void);
+        winapi::um::wingdi::SelectObject(dc, winapi::um::wingdi::GetStockObject(winapi::um::wingdi::DC_PEN as i32));
+        winapi::um::wingdi::DeleteObject(pen as *mut winapi::ctypes::c_void);
     }
 }
 
-unsafe fn nk_gdi_draw_image(dc: winapi::HDC, x: i32, y: i32, w: i32, h: i32, mut img: NkImage, _: NkColor) {
-    let mut bitmap: winapi::BITMAP = mem::zeroed();
-    let hdc1 = gdi32::CreateCompatibleDC(ptr::null_mut());
+unsafe fn nk_gdi_draw_image(dc: winapi::shared::windef::HDC, x: i32, y: i32, w: i32, h: i32, mut img: NkImage, _: NkColor) {
+    let mut bitmap: winapi::um::wingdi::BITMAP = mem::zeroed();
+    let hdc1 = winapi::um::wingdi::CreateCompatibleDC(ptr::null_mut());
     let h_bitmap = img.ptr();
 
-    gdi32::GetObjectW(h_bitmap,
+    winapi::um::wingdi::GetObjectW(h_bitmap as *mut winapi::ctypes::c_void,
                       mem::size_of_val(&bitmap) as i32,
-                      &mut bitmap as *mut _ as *mut raw::c_void);
+                      &mut bitmap as *mut _ as *mut winapi::ctypes::c_void);
 
-    gdi32::SelectObject(hdc1, h_bitmap);
+    winapi::um::wingdi::SelectObject(hdc1, h_bitmap as *mut winapi::ctypes::c_void);
 
-    let blendfunc = winapi::BLENDFUNCTION {
+    let blendfunc = winapi::um::wingdi::BLENDFUNCTION {
         BlendOp: 0,
         BlendFlags: 0,
         SourceConstantAlpha: 255,
         AlphaFormat: 1,
     };
 
-    gdi32::GdiAlphaBlend(dc,
+    winapi::um::wingdi::GdiAlphaBlend(dc,
                          x,
                          y,
                          w,
@@ -953,27 +948,27 @@ unsafe fn nk_gdi_draw_image(dc: winapi::HDC, x: i32, y: i32, w: i32, h: i32, mut
                          bitmap.bmHeight,
                          blendfunc);
 
-    gdi32::DeleteDC(hdc1);
+    winapi::um::wingdi::DeleteDC(hdc1);
 }
 
-unsafe fn nk_gdi_draw_text(dc: winapi::HDC, x: i32, y: i32, _: i32, _: i32, text: *const i8, text_len: i32, font: *const GdiFont, cbg: NkColor, cfg: NkColor) {
-    let wsize = kernel32::MultiByteToWideChar(winapi::CP_UTF8, 0, text, text_len, ptr::null_mut(), 0);
-    let mut wstr = vec![0u16; wsize as usize * mem::size_of::<winapi::wchar_t>()];
-    kernel32::MultiByteToWideChar(winapi::CP_UTF8, 0, text, text_len, wstr.as_mut_ptr(), wsize);
+unsafe fn nk_gdi_draw_text(dc: winapi::shared::windef::HDC, x: i32, y: i32, _: i32, _: i32, text: *const i8, text_len: i32, font: *const GdiFont, cbg: NkColor, cfg: NkColor) {
+    let wsize = winapi::um::xxx::MultiByteToWideChar(winapi::um::winnls::CP_UTF8, 0, text, text_len, ptr::null_mut(), 0);
+    let mut wstr = vec![0u16; wsize as usize * mem::size_of::<winapi::ctypes::wchar_t>()];
+    winapi::um::xxx::MultiByteToWideChar(winapi::um::winnls::CP_UTF8, 0, text, text_len, wstr.as_mut_ptr(), wsize);
 
-    gdi32::SetBkColor(dc, convert_color(cbg));
-    gdi32::SetTextColor(dc, convert_color(cfg));
+    winapi::um::wingdi::SetBkColor(dc, convert_color(cbg));
+    winapi::um::wingdi::SetTextColor(dc, convert_color(cfg));
 
-    gdi32::SelectObject(dc, (*font).handle as *mut raw::c_void);
-    gdi32::ExtTextOutW(dc,
+    winapi::um::wingdi::SelectObject(dc, (*font).handle as *mut winapi::ctypes::c_void);
+    winapi::um::wingdi::ExtTextOutW(dc,
                        x,
                        y,
-                       winapi::ETO_OPAQUE,
+                       winapi::um::wingdi::ETO_OPAQUE,
                        ptr::null_mut(),
                        wstr.as_mut_ptr(),
                        wsize as u32,
                        ptr::null_mut());
-    gdi32::SetDCBrushColor(dc, convert_color(cbg));
+    winapi::um::wingdi::SetDCBrushColor(dc, convert_color(cbg));
 }
 
 unsafe extern "C" fn nk_gdifont_get_text_width(handle: nksys::nk_handle, _: f32, text: *const i8, len: i32) -> f32 {
@@ -982,18 +977,18 @@ unsafe extern "C" fn nk_gdifont_get_text_width(handle: nksys::nk_handle, _: f32,
         return 0.0;
     }
 
-    let mut size = winapi::SIZE { cx: 0, cy: 0 };
-    let wsize = kernel32::MultiByteToWideChar(winapi::CP_UTF8, 0, text, len, ptr::null_mut(), 0);
-    let mut wstr: Vec<winapi::wchar_t> = vec![0; wsize as usize];
-    kernel32::MultiByteToWideChar(winapi::CP_UTF8,
+    let mut size = winapi::shared::windef::SIZE { cx: 0, cy: 0 };
+    let wsize = winapi::um::xxx::MultiByteToWideChar(winapi::um::winnls::CP_UTF8, 0, text, len, ptr::null_mut(), 0);
+    let mut wstr: Vec<winapi::ctypes::wchar_t> = vec![0; wsize as usize];
+    winapi::um::xxx::MultiByteToWideChar(winapi::um::winnls::CP_UTF8,
                                   0,
                                   text,
                                   len,
-                                  wstr.as_mut_slice() as *mut _ as *mut winapi::wchar_t,
+                                  wstr.as_mut_slice() as *mut _ as *mut winapi::ctypes::wchar_t,
                                   wsize);
 
-    if gdi32::GetTextExtentPoint32W((*font).dc,
-                                    wstr.as_slice() as *const _ as *const winapi::wchar_t,
+    if winapi::um::wingdi::GetTextExtentPoint32W((*font).dc,
+                                    wstr.as_slice() as *const _ as *const winapi::ctypes::wchar_t,
                                     wsize,
                                     &mut size) > 0 {
         size.cx as f32
@@ -1003,15 +998,15 @@ unsafe extern "C" fn nk_gdifont_get_text_width(handle: nksys::nk_handle, _: f32,
 }
 
 unsafe extern "C" fn nk_gdi_clipbard_paste(_: nksys::nk_handle, edit: *mut nksys::nk_text_edit) {
-    if user32::IsClipboardFormatAvailable(winapi::CF_UNICODETEXT) > 0 && user32::OpenClipboard(ptr::null_mut()) > 0 {
-        let clip = user32::GetClipboardData(winapi::CF_UNICODETEXT);
+    if winapi::um::winuser::IsClipboardFormatAvailable(winapi::um::winuser::CF_UNICODETEXT) > 0 && winapi::um::winuser::OpenClipboard(ptr::null_mut()) > 0 {
+        let clip = winapi::um::winuser::GetClipboardData(winapi::um::winuser::CF_UNICODETEXT);
         if !clip.is_null() {
-            let size = kernel32::GlobalSize(clip) - 1;
+            let size = winapi::um::winbase::GlobalSize(clip) - 1;
             if size > 0 {
-                let wstr = kernel32::GlobalLock(clip);
+                let wstr = winapi::um::winbase::GlobalLock(clip);
                 if !wstr.is_null() {
-                    let size = (size / mem::size_of::<winapi::wchar_t>() as winapi::SIZE_T) as i32;
-                    let utf8size = kernel32::WideCharToMultiByte(winapi::CP_UTF8,
+                    let size = (size / mem::size_of::<winapi::ctypes::wchar_t>() as winapi::shared::basetsd::SIZE_T) as i32;
+                    let utf8size = winapi::um::xxx::WideCharToMultiByte(winapi::um::winnls::CP_UTF8,
                                                                  0,
                                                                  wstr as *const u16,
                                                                  size,
@@ -1021,7 +1016,7 @@ unsafe extern "C" fn nk_gdi_clipbard_paste(_: nksys::nk_handle, edit: *mut nksys
                                                                  ptr::null_mut());
                     if utf8size > 0 {
                         let mut utf8: Vec<u8> = vec![0; utf8size as usize];
-                        kernel32::WideCharToMultiByte(winapi::CP_UTF8,
+                        winapi::um::xxx::WideCharToMultiByte(winapi::um::winnls::CP_UTF8,
                                                       0,
                                                       wstr as *const u16,
                                                       size,
@@ -1029,36 +1024,36 @@ unsafe extern "C" fn nk_gdi_clipbard_paste(_: nksys::nk_handle, edit: *mut nksys
                                                       utf8size,
                                                       ptr::null_mut(),
                                                       ptr::null_mut());
-                        let mut edit: &mut NkTextEdit = ::std::mem::transmute(edit);
+                        let edit: &mut NkTextEdit = ::std::mem::transmute(edit);
                         edit.paste(str::from_utf8_unchecked(utf8.as_slice()));
                     }
-                    kernel32::GlobalUnlock(clip);
+                    winapi::um::winbase::GlobalUnlock(clip);
                 }
             }
         }
-        user32::CloseClipboard();
+        winapi::um::winuser::CloseClipboard();
     }
 }
 
 unsafe extern "C" fn nk_gdi_clipbard_copy(_: nksys::nk_handle, text: *const i8, _: i32) {
-    if user32::OpenClipboard(ptr::null_mut()) > 0 {
+    if winapi::um::winuser::OpenClipboard(ptr::null_mut()) > 0 {
     	let str_size = ffi::CStr::from_ptr(text).to_bytes().len() as i32;
-        let wsize = kernel32::MultiByteToWideChar(winapi::CP_UTF8, 0, text, str_size, ptr::null_mut(), 0);
+        let wsize = winapi::um::xxx::MultiByteToWideChar(winapi::um::winnls::CP_UTF8, 0, text, str_size, ptr::null_mut(), 0);
         if wsize > 0 {
-            let mem = kernel32::GlobalAlloc(2,
-                                            ((wsize + 1) as usize * mem::size_of::<winapi::wchar_t>()) as winapi::SIZE_T); // 2 = GMEM_MOVEABLE
+            let mem = winapi::um::winbase::GlobalAlloc(2,
+                                            ((wsize + 1) as usize * mem::size_of::<winapi::ctypes::wchar_t>()) as winapi::shared::basetsd::SIZE_T); // 2 = GMEM_MOVEABLE
             if !mem.is_null() {
-                let wstr = kernel32::GlobalLock(mem);
+                let wstr = winapi::um::winbase::GlobalLock(mem);
                 if !wstr.is_null() {
-                    kernel32::MultiByteToWideChar(winapi::CP_UTF8, 0, text, str_size, wstr as *mut u16, wsize);
+                    winapi::um::xxx::MultiByteToWideChar(winapi::um::winnls::CP_UTF8, 0, text, str_size, wstr as *mut u16, wsize);
                     *(wstr.offset((wsize * mem::size_of::<u16>() as i32) as isize) as *mut u8) = 0;
-                    kernel32::GlobalUnlock(mem);
+                    winapi::um::winbase::GlobalUnlock(mem);
 
-                    user32::SetClipboardData(winapi::CF_UNICODETEXT, mem);
+                    winapi::um::winuser::SetClipboardData(winapi::um::winuser::CF_UNICODETEXT, mem);
                 }
             }
         }
-        user32::CloseClipboard();
+        winapi::um::winuser::CloseClipboard();
     }
 }
 
